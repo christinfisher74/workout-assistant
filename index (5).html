@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Workout Assistant — Feminine Strength Co.</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+  :root{--bg:#F4F1EC;--dark:#2C3A2E;--accent:#A8C5A0;--text:#2C3A2E;--muted:#6B7C6E;--serif:Georgia,serif;--sans:-apple-system,'Helvetica Neue',Helvetica,sans-serif;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body,#root{height:100%;overflow:hidden}
+  body{background:var(--bg);font-family:var(--serif);color:var(--text);}
+  .fade-in{animation:fadeUp 0.4s ease both}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+  .start-btn:hover,.next-btn:hover:not(:disabled){background:#3D5440!important}
+  .opt-btn:hover:not(.selected){border-color:#7DAF75!important;background:#F8FBF7!important}
+  .quick-btn:hover,.regen-btn:hover{background:#EEF5EC!important;border-color:#7DAF75!important}
+  .send-btn:hover:not(:disabled){background:#3D5440!important}
+  .done-set-btn:hover{background:#EBF4E8!important;border-color:var(--accent)!important}
+  .set-input:focus{border-color:#7DAF75!important;background:#fff!important;outline:none}
+  .week-day-btn:hover{transform:translateY(-2px);transition:transform 0.15s}
+  .ta:focus{border-color:#7DAF75!important;background:#fff!important;outline:none}
+  .ate-btn:hover{background:#3D5440!important}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;animation:bop 1.2s infinite ease-in-out}
+  .dot:nth-child(2){animation-delay:0.2s}.dot:nth-child(3){animation-delay:0.4s}
+  @keyframes bop{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-7px)}}
+  ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#C8D9C4;border-radius:4px}
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+// ─── Storage ──────────────────────────────────────────────────────────────────
+const STORE_KEY = 'fsc_workout_v1';
+function loadState(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY))||{}; }catch{ return {}; } }
+function saveState(data){ try{ localStorage.setItem(STORE_KEY,JSON.stringify(data)); }catch{} }
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const STEPS = [
+  { id:"goal", question:"What's your main training goal?", type:"single", options:[
+    {label:"Build strength & muscle",icon:"💪"},
+    {label:"Lose fat, keep muscle",icon:"🔥"},
+    {label:"Improve energy & hormones",icon:"⚡"},
+    {label:"Move better & feel good",icon:"🌿"},
+  ]},
+  { id:"experience", question:"How long have you been lifting?", type:"single", options:[
+    {label:"Brand new — just starting",icon:"🌱"},
+    {label:"Under a year",icon:"📅"},
+    {label:"1–3 years",icon:"📈"},
+    {label:"3+ years",icon:"🏆"},
+  ]},
+  { id:"equipment", question:"What equipment do you have?", type:"multi", options:[
+    {label:"Full gym (barbells, cables, machines)",icon:"🏋️"},
+    {label:"Dumbbells & bench",icon:"🪨"},
+    {label:"Resistance bands",icon:"🔁"},
+    {label:"Bodyweight only",icon:"🧘"},
+  ]},
+  { id:"days", question:"How many days a week can you train?", type:"single", options:[
+    {label:"2 days",icon:"2️⃣"},
+    {label:"3 days",icon:"3️⃣"},
+    {label:"4 days",icon:"4️⃣"},
+    {label:"5+ days",icon:"5️⃣"},
+  ]},
+  { id:"limitations", question:"Any physical limitations?", type:"multi", options:[
+    {label:"Knee issues",icon:"🦵"},
+    {label:"Lower back sensitivity",icon:"🔙"},
+    {label:"Shoulder issues",icon:"💆"},
+    {label:"No jumping (apartment)",icon:"🏢"},
+    {label:"None — I'm good",icon:"✅"},
+  ]},
+];
+
+const WORKOUT_COMPLETE = [
+  "That's a full session in the books. Your body just got stronger.",
+  "Done. You showed up and did the work — that's the whole game.",
+  "Finished. Rest, eat your protein, and come back.",
+  "Every set logged. This is what consistency looks like.",
+];
+
+const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+let _uid=0;
+function uid(){ return `${Date.now()}-${++_uid}-${Math.random().toString(36).slice(2,6)}`; }
+
+// ─── API ──────────────────────────────────────────────────────────────────────
+async function callClaude(systemPrompt, userContent){
+  const res = await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,system:systemPrompt,messages:[{role:"user",content:userContent}]}),
+  });
+  if(!res.ok) throw new Error(`API ${res.status}`);
+  const d=await res.json();
+  return d.content?.find(b=>b.type==="text")?.text||"";
+}
+
+// ─── System prompt ────────────────────────────────────────────────────────────
+function buildPrompt(profile){
+  return `You are a workout programming assistant speaking in the voice of Christin Fisher, a certified personal trainer and women's strength coach at Feminine Strength Co.
+
+Tone: direct, warm, encouraging. No fluff. No hustle culture. Smart, purposeful programming for women.
+
+Client profile:
+- Goal: ${profile.goal}
+- Experience: ${profile.experience}
+- Equipment: ${profile.equipment?.join(", ")}
+- Training days/week: ${profile.days}
+- Limitations: ${profile.limitations?.join(", ")||"None"}
+
+For a FULL WEEK PROGRAM respond with:
+
+---WEEK---
+days: [number]
+structure: [e.g. Upper/Lower, Full Body, PPL]
+focus: [one sentence on the week's focus]
+---ENDWEEK---
+
+Then for each training day:
+
+---DAY---
+day: [Mon/Tue/Wed/Thu/Fri/Sat/Sun]
+label: [e.g. Upper Body — Push Focus]
+type: [strength/hypertrophy/conditioning/mobility]
+duration: [e.g. 45 min]
+exercises:
+- name: [Exercise Name]
+  sets: [number]
+  reps: [e.g. 8-10 or 30 sec]
+  rest: [seconds, number only]
+  cue: [one coaching cue in your voice]
+  type: [strength/timer]
+---ENDDAY---
+
+For REST days:
+---DAY---
+day: [day]
+label: Rest & Recovery
+type: rest
+---ENDDAY---
+
+For a SINGLE workout use the same ---DAY--- format.
+For general questions respond conversationally without structured blocks.
+Respect equipment and limitations strictly.
+Beginners: fewer exercises, foundational movements, lower volume.`;
+}
+
+// ─── Parsers ──────────────────────────────────────────────────────────────────
+function parseWeekMeta(text){
+  const m=text.match(/---WEEK---([\s\S]*?)---ENDWEEK---/);
+  if(!m) return null;
+  const b=m[1];
+  return{days:parseInt((b.match(/days:\s*(\d+)/)||[])[1])||4,structure:(b.match(/structure:\s*(.+)/)||[])[1]?.trim()||"",focus:(b.match(/focus:\s*(.+)/)||[])[1]?.trim()||""};
+}
+function parseDays(text){
+  const regex=/---DAY---([\s\S]*?)---ENDDAY---/g;
+  const days=[]; let m;
+  while((m=regex.exec(text))!==null){
+    const b=m[1];
+    const type=(b.match(/type:\s*(.+)/)||[])[1]?.trim()||"strength";
+    if(type==="rest"){days.push({id:uid(),day:(b.match(/day:\s*(.+)/)||[])[1]?.trim(),label:"Rest & Recovery",type:"rest",exercises:[]});continue;}
+    const exBlock=(b.match(/exercises:([\s\S]*)/)||[])[1]||"";
+    const exercises=[];
+    const chunks=exBlock.split(/(?=- name:)/g).filter(c=>c.trim().startsWith("- name:"));
+    for(const chunk of chunks){
+      const name=(chunk.match(/name:\s*(.+)/)||[])[1]?.trim()||"";
+      const sets=parseInt((chunk.match(/sets:\s*(\d+)/)||[])[1])||3;
+      const reps=(chunk.match(/reps:\s*(.+)/)||[])[1]?.trim()||"10";
+      const rest=parseInt((chunk.match(/rest:\s*(\d+)/)||[])[1])||60;
+      const cue=(chunk.match(/cue:\s*(.+)/)||[])[1]?.trim()||"";
+      const exType=(chunk.match(/type:\s*(.+)/)||[])[1]?.trim()||"strength";
+      if(name) exercises.push({id:uid(),name,sets,reps,rest,cue,type:exType,logs:Array.from({length:sets},()=>({weight:"",reps:"",done:false}))});
+    }
+    days.push({id:uid(),day:(b.match(/day:\s*(.+)/)||[])[1]?.trim()||"",label:(b.match(/label:\s*(.+)/)||[])[1]?.trim()||"",type,duration:(b.match(/duration:\s*(.+)/)||[])[1]?.trim()||"",exercises});
+  }
+  return days;
+}
+function cleanAI(text){ return text.replace(/---WEEK---([\s\S]*?)---ENDWEEK---/g,"").replace(/---DAY---([\s\S]*?)---ENDDAY---/g,"").replace(/\n{3,}/g,"\n\n").trim(); }
+
+// ─── Markdown ─────────────────────────────────────────────────────────────────
+function MD({text}){
+  if(!text) return null;
+  return React.createElement("div",null,
+    text.split("\n").map((line,i)=>{
+      const html=line.replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>").replace(/\*(.*?)\*/g,"<em>$1</em>");
+      if(line.startsWith("- ")||line.startsWith("• ")) return React.createElement("div",{key:i,style:{display:"flex",gap:8,marginBottom:4}},React.createElement("span",{style:{color:"var(--accent)",flexShrink:0}},"◆"),React.createElement("span",{dangerouslySetInnerHTML:{__html:html.replace(/^[-•]\s*/,"")}}));
+      if(line.trim()==="") return React.createElement("div",{key:i,style:{height:8}});
+      return React.createElement("div",{key:i,style:{marginBottom:4},dangerouslySetInnerHTML:{__html:html}});
+    })
+  );
+}
+
+// ─── Rest Timer ───────────────────────────────────────────────────────────────
+function RestTimer({seconds,onDone}){
+  const [left,setLeft]=useState(seconds);
+  useEffect(()=>{
+    if(left<=0){onDone();return;}
+    const t=setTimeout(()=>setLeft(l=>l-1),1000);
+    return()=>clearTimeout(t);
+  },[left]);
+  const pct=((seconds-left)/seconds)*100;
+  return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,padding:"14px",background:"#F7FAF6",border:"1.5px solid #DDE8D9",borderRadius:16,margin:"8px 0"}}>
+      <div style={{position:"relative",width:72,height:72,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <svg width="72" height="72" viewBox="0 0 72 72"><circle cx="36" cy="36" r="30" fill="none" stroke="#DDE8D9" strokeWidth="6"/><circle cx="36" cy="36" r="30" fill="none" stroke="var(--accent)" strokeWidth="6" strokeDasharray={`${2*Math.PI*30}`} strokeDashoffset={`${2*Math.PI*30*(1-pct/100)}`} strokeLinecap="round" style={{transform:"rotate(-90deg)",transformOrigin:"center",transition:"stroke-dashoffset 1s linear"}}/></svg>
+        <div style={{position:"absolute",fontFamily:"var(--sans)",fontWeight:700,fontSize:18,color:"var(--dark)"}}>{left}s</div>
+      </div>
+      <div style={{fontFamily:"var(--sans)",fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:"0.08em"}}>Rest</div>
+      <button style={{background:"none",border:"none",fontFamily:"var(--sans)",fontSize:12,color:"var(--accent)",cursor:"pointer",fontWeight:600}} onClick={onDone}>Skip →</button>
+    </div>
+  );
+}
+
+// ─── Interval Timer ───────────────────────────────────────────────────────────
+function IntervalTimer({duration,label,onDone}){
+  const secs=parseInt(duration)||30;
+  const [left,setLeft]=useState(secs);
+  const [running,setRunning]=useState(false);
+  useEffect(()=>{
+    if(!running) return;
+    if(left<=0){setRunning(false);onDone();return;}
+    const t=setTimeout(()=>setLeft(l=>l-1),1000);
+    return()=>clearTimeout(t);
+  },[running,left]);
+  const pct=((secs-left)/secs)*100;
+  return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:"16px",background:"#F4F1EC",border:"1.5px solid #DDE8D9",borderRadius:16,margin:"8px 0"}}>
+      <div style={{fontFamily:"var(--sans)",fontWeight:600,fontSize:13,color:"var(--dark)"}}>{label} — {duration}</div>
+      <div style={{position:"relative",width:84,height:84,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <svg width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="36" fill="none" stroke="#DDE8D9" strokeWidth="7"/><circle cx="42" cy="42" r="36" fill="none" stroke="var(--dark)" strokeWidth="7" strokeDasharray={`${2*Math.PI*36}`} strokeDashoffset={`${2*Math.PI*36*(1-pct/100)}`} strokeLinecap="round" style={{transform:"rotate(-90deg)",transformOrigin:"center",transition:"stroke-dashoffset 1s linear"}}/></svg>
+        <div style={{position:"absolute",fontFamily:"var(--sans)",fontWeight:700,fontSize:20,color:"var(--dark)"}}>{left}s</div>
+      </div>
+      <div style={{display:"flex",gap:10}}>
+        <button style={{background:running?"#C05050":"var(--dark)",color:"#F7F5F0",border:"none",borderRadius:20,padding:"8px 20px",fontSize:13,fontFamily:"var(--sans)",fontWeight:600,cursor:"pointer"}} onClick={()=>setRunning(r=>!r)}>{running?"⏸ Pause":"▶ Start"}</button>
+        <button style={{background:"none",border:"1.5px solid #C8D9C4",color:"var(--dark)",borderRadius:20,padding:"8px 16px",fontSize:13,fontFamily:"var(--sans)",fontWeight:600,cursor:"pointer"}} onClick={()=>{setRunning(false);onDone();}}>Done ✓</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Exercise Row ─────────────────────────────────────────────────────────────
+function ExerciseRow({exercise,onUpdate,isActive,onSetActive}){
+  const [restingAfter,setRestingAfter]=useState(null);
+  const completeSet=(si)=>{
+    const updated=exercise.logs.map((l,i)=>i===si?{...l,done:true}:l);
+    onUpdate({...exercise,logs:updated});
+    if(si<exercise.sets-1) setRestingAfter(si);
+  };
+  const updateLog=(si,field,val)=>{
+    const updated=exercise.logs.map((l,i)=>i===si?{...l,[field]:val}:l);
+    onUpdate({...exercise,logs:updated});
+  };
+  const allDone=exercise.logs.every(l=>l.done);
+  const doneSets=exercise.logs.filter(l=>l.done).length;
+  return(
+    <div style={{background:"#fff",border:`1.5px solid ${allDone?"#A8C5A0":"#DDE8D9"}`,borderRadius:14,overflow:"hidden",marginBottom:10,background:allDone?"#F7FAF6":"#fff"}}>
+      <div style={{padding:"13px 14px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}} onClick={onSetActive}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:32,height:32,borderRadius:"50%",border:"2px solid #DDE8D9",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,background:"#F7FAF6"}}>
+            {allDone?<span style={{color:"var(--accent)",fontSize:14}}>✓</span>:<span style={{fontFamily:"var(--sans)",fontSize:11,color:"var(--muted)",fontWeight:600}}>{doneSets}/{exercise.sets}</span>}
+          </div>
+          <div>
+            <div style={{fontFamily:"var(--sans)",fontWeight:700,fontSize:14,color:"var(--dark)"}}>{exercise.name}</div>
+            <div style={{fontFamily:"var(--sans)",fontSize:11,color:"var(--muted)",marginTop:2}}>{exercise.sets} sets · {exercise.reps} · {exercise.rest}s rest</div>
+          </div>
+        </div>
+        <span style={{fontFamily:"var(--sans)",fontSize:11,color:"var(--muted)"}}>{isActive?"▲":"▼"}</span>
+      </div>
+      {isActive&&(
+        <div style={{padding:"0 14px 14px"}}>
+          {exercise.cue&&<div style={{background:"#EEF5EC",border:"1px solid #C8D9C4",borderRadius:10,padding:"10px 12px",fontFamily:"var(--sans)",fontSize:12,color:"#3D5440",lineHeight:1.55,marginBottom:12,fontStyle:"italic"}}>💬 "{exercise.cue}"</div>}
+          {exercise.type==="timer"
+            ?<IntervalTimer duration={exercise.reps} label={exercise.name} onDone={()=>onUpdate({...exercise,logs:exercise.logs.map(l=>({...l,done:true}))})}/>
+            :(
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",marginBottom:4}}>
+                  <span style={{fontFamily:"var(--sans)",fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"var(--muted)",flex:1}}>SET</span>
+                  <span style={{fontFamily:"var(--sans)",fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"var(--muted)",flex:1}}>WEIGHT</span>
+                  <span style={{fontFamily:"var(--sans)",fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"var(--muted)",flex:1}}>REPS</span>
+                  <span style={{width:44}}/>
+                </div>
+                {exercise.logs.map((log,si)=>(
+                  <div key={si}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #F0F5EE",opacity:log.done?0.5:1}}>
+                      <span style={{fontFamily:"var(--sans)",fontWeight:700,fontSize:13,color:"var(--muted)",width:20,textAlign:"center",flex:1}}>{si+1}</span>
+                      <input className="set-input" style={{flex:1,border:"1.5px solid #E0EBE0",borderRadius:8,padding:"7px 8px",fontSize:13,fontFamily:"var(--sans)",color:"var(--dark)",background:"var(--bg)",outline:"none",textAlign:"center",minWidth:0}} type="number" placeholder="—" value={log.weight} disabled={log.done} onChange={e=>updateLog(si,"weight",e.target.value)}/>
+                      <input className="set-input" style={{flex:1,border:"1.5px solid #E0EBE0",borderRadius:8,padding:"7px 8px",fontSize:13,fontFamily:"var(--sans)",color:"var(--dark)",background:"var(--bg)",outline:"none",textAlign:"center",minWidth:0}} type="number" placeholder={exercise.reps.split("-")[0]||"10"} value={log.reps} disabled={log.done} onChange={e=>updateLog(si,"reps",e.target.value)}/>
+                      <button className={log.done?"":"done-set-btn"} disabled={log.done} style={{width:36,height:36,borderRadius:"50%",border:log.done?"2px solid var(--accent)":"2px solid #DDE8D9",background:log.done?"var(--accent)":"none",cursor:log.done?"default":"pointer",fontSize:14,color:log.done?"var(--dark)":"var(--muted)",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>completeSet(si)}>✓</button>
+                    </div>
+                    {restingAfter===si&&<RestTimer seconds={exercise.rest} onDone={()=>setRestingAfter(null)}/>}
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Week Card ────────────────────────────────────────────────────────────────
+function WeekCard({week,days,onSelectDay,activeDay}){
+  return(
+    <div style={{background:"#fff",border:"1.5px solid #DDE8D9",borderRadius:16,padding:"16px",marginBottom:16}}>
+      {week&&<div style={{marginBottom:12}}><span style={{fontFamily:"var(--sans)",fontWeight:700,fontSize:13,color:"var(--dark)",display:"block",marginBottom:3}}>{week.structure}</span><span style={{fontFamily:"var(--sans)",fontSize:12,color:"var(--muted)",fontStyle:"italic"}}>{week.focus}</span></div>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6}}>
+        {days.map((d,i)=>{
+          const isRest=d.type==="rest";
+          const isActive=activeDay?.id===d.id;
+          const allDone=!isRest&&d.exercises.length>0&&d.exercises.every(ex=>ex.logs.every(l=>l.done));
+          return(
+            <button key={d.id} className={isRest?"":"week-day-btn"} style={{background:isActive?"var(--dark)":allDone?"#EEF5EC":"var(--bg)",border:`1.5px solid ${isActive?"var(--dark)":allDone?"var(--accent)":"#DDE8D9"}`,borderRadius:10,padding:"8px 4px",cursor:isRest?"default":"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,opacity:isRest?0.5:1,position:"relative"}} onClick={()=>!isRest&&onSelectDay(d)}>
+              <span style={{fontFamily:"var(--sans)",fontSize:9,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:isActive?"rgba(247,245,240,0.7)":"var(--muted)"}}>{d.day||DAYS_SHORT[i]}</span>
+              <span style={{fontFamily:"var(--sans)",fontSize:9,color:isActive?"#F7F5F0":"var(--dark)",textAlign:"center",lineHeight:1.2}}>{isRest?"Rest":d.label?.split("—")[0]?.trim()||d.type}</span>
+              {allDone&&<span style={{position:"absolute",top:3,right:3,fontSize:8,color:"var(--accent)",fontWeight:700}}>✓</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Workout View ─────────────────────────────────────────────────────────────
+function WorkoutView({day,onUpdate,onBack,onComplete}){
+  const [activeEx,setActiveEx]=useState(0);
+  const allDone=day.exercises.every(ex=>ex.logs.every(l=>l.done));
+  const donePct=day.exercises.length>0?Math.round((day.exercises.filter(ex=>ex.logs.every(l=>l.done)).length/day.exercises.length)*100):0;
+  const updateEx=(idx,updated)=>{
+    const newExs=day.exercises.map((e,i)=>i===idx?updated:e);
+    onUpdate({...day,exercises:newExs});
+  };
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+      <div style={{padding:"14px 16px",display:"flex",alignItems:"center",gap:12,borderBottom:"1.5px solid #DDE8D9",background:"#fff",flexShrink:0}}>
+        <button style={{background:"none",border:"none",fontFamily:"var(--sans)",fontSize:13,color:"var(--accent)",cursor:"pointer",fontWeight:600,padding:0}} onClick={onBack}>← Week</button>
+        <div style={{fontFamily:"var(--sans)",fontWeight:700,fontSize:15,color:"var(--dark)",flex:1}}>{day.label}</div>
+        <div style={{fontFamily:"var(--sans)",fontSize:12,color:"var(--muted)"}}>{day.duration}</div>
+      </div>
+      <div style={{height:4,background:"#E5EDE3",flexShrink:0}}><div style={{height:"100%",background:"var(--accent)",width:`${donePct}%`,transition:"width 0.4s ease"}}/></div>
+      <div style={{fontFamily:"var(--sans)",fontSize:11,color:"var(--muted)",padding:"6px 16px",background:"#F7FAF6",borderBottom:"1px solid #EEF5EC",flexShrink:0}}>{donePct}% complete · {day.exercises.filter(e=>e.logs.every(l=>l.done)).length}/{day.exercises.length} exercises</div>
+      <div style={{flex:1,overflowY:"auto",padding:"14px"}}>
+        {day.exercises.map((ex,i)=>(
+          <ExerciseRow key={ex.id} exercise={ex} isActive={activeEx===i} onSetActive={()=>setActiveEx(i===activeEx?null:i)} onUpdate={(u)=>updateEx(i,u)}/>
+        ))}
+        {allDone&&(
+          <div style={{background:"var(--dark)",borderRadius:16,padding:"28px 24px",textAlign:"center",marginTop:16}} className="fade-in">
+            <div style={{fontSize:40,marginBottom:12}}>🏆</div>
+            <div style={{fontFamily:"var(--serif)",fontSize:22,fontWeight:"bold",color:"#F7F5F0",marginBottom:8}}>Session Complete!</div>
+            <div style={{fontFamily:"var(--sans)",fontSize:13,color:"rgba(247,245,240,0.7)",lineHeight:1.6,marginBottom:20}}>{WORKOUT_COMPLETE[Math.floor(Math.random()*WORKOUT_COMPLETE.length)]}</div>
+            <button style={{background:"var(--accent)",color:"var(--dark)",border:"none",borderRadius:12,padding:"12px 24px",fontSize:14,fontFamily:"var(--sans)",fontWeight:700,cursor:"pointer"}} onClick={onComplete}>Log this session →</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main App ─────────────────────────────────────────────────────────────────
+function App(){
+  const saved=loadState();
+  const [phase,setPhase]=useState(saved.phase||"welcome");
+  const [activeTab,setActiveTab]=useState("program");
+  const [step,setStep]=useState(0);
+  const [profile,setProfile]=useState(saved.profile||{});
+  const [selections,setSelections]=useState([]);
+  const [messages,setMessages]=useState(saved.messages||[]);
+  const [input,setInput]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState(null);
+  const [weekMeta,setWeekMeta]=useState(saved.weekMeta||null);
+  const [programDays,setProgramDays]=useState(saved.programDays||[]);
+  const [activeWorkout,setActiveWorkout]=useState(null);
+  const [completedSessions,setCompletedSessions]=useState(saved.completedSessions||[]);
+  const [generating,setGenerating]=useState(false);
+  const bottomRef=useRef(null);
+
+  // Persist to localStorage
+  useEffect(()=>{
+    if(phase==="chat"||phase==="welcome") saveState({phase,profile,messages,weekMeta,programDays,completedSessions});
+  },[phase,profile,messages,weekMeta,programDays,completedSessions]);
+
+  useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[messages,loading]);
+
+  const currentStep=STEPS[step];
+  const toggleSel=(label)=>{
+    if(currentStep.type==="single") setSelections([label]);
+    else setSelections(p=>p.includes(label)?p.filter(s=>s!==label):[...p,label]);
+  };
+
+  const nextStep=async()=>{
+    if(!selections.length) return;
+    const updated={...profile,[currentStep.id]:currentStep.type==="multi"?selections:selections[0]};
+    setProfile(updated); setSelections([]);
+    if(step<STEPS.length-1){setStep(step+1);return;}
+    setPhase("chat"); setGenerating(true);
+    try{
+      const prompt=`${buildPrompt(updated)}\n\nGenerate a full week program for this client. Include all ${updated.days} training days and rest days to fill the week. After the structured blocks, write a short 2-sentence welcome in your voice.`;
+      const raw=await callClaude(buildPrompt(updated),prompt);
+      const meta=parseWeekMeta(raw);
+      const days=parseDays(raw);
+      const clean=cleanAI(raw);
+      if(meta) setWeekMeta(meta);
+      if(days.length) setProgramDays(days);
+      setMessages([{role:"assistant",content:clean,days}]);
+    }catch{setError("Couldn't generate program — check your connection and try again.");}
+    finally{setGenerating(false);}
+  };
+
+  const send=async(text)=>{
+    const userText=(text||input).trim();
+    if(!userText||loading) return;
+    setInput(""); setError(null);
+    const updated=[...messages,{role:"user",content:userText,days:[]}];
+    setMessages(updated); setLoading(true);
+    try{
+      const history=updated.map(m=>`${m.role==="user"?"Client":"Coach"}: ${m.content}`).join("\n\n");
+      const raw=await callClaude(buildPrompt(profile),history);
+      const days=parseDays(raw);
+      const meta=parseWeekMeta(raw);
+      const clean=cleanAI(raw);
+      if(meta) setWeekMeta(meta);
+      if(days.length) setProgramDays(days);
+      setMessages([...updated,{role:"assistant",content:clean,days}]);
+    }catch{setError("Couldn't connect — try again.");setMessages(updated);}
+    finally{setLoading(false);}
+  };
+
+  const onKey=(e)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}};
+
+  const updateDay=(updated)=>{
+    setProgramDays(p=>p.map(d=>d.id===updated.id?updated:d));
+    if(activeWorkout?.id===updated.id) setActiveWorkout(updated);
+  };
+
+  const completeWorkout=()=>{
+    const now=new Date();
+    setCompletedSessions(p=>[...p,{id:uid(),date:now.toLocaleDateString(),label:activeWorkout.label,exercises:activeWorkout.exercises.length}]);
+    setActiveWorkout(null); setActiveTab("program");
+  };
+
+  const todaySessions=completedSessions.filter(s=>s.date===new Date().toLocaleDateString());
+
+  const reset=()=>{
+    saveState({});
+    setPhase("welcome");setStep(0);setProfile({});setMessages([]);setSelections([]);
+    setProgramDays([]);setWeekMeta(null);setActiveWorkout(null);setCompletedSessions([]);setActiveTab("program");
+  };
+
+  const S={
+    root:{display:"flex",flexDirection:"column",height:"100vh",background:"var(--bg)",overflow:"hidden"},
+    header:{background:"var(--dark)",flexShrink:0},
+    headerInner:{padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"},
+    logo:{display:"flex",alignItems:"center",gap:10},
+    logoName:{color:"#F7F5F0",fontSize:15,fontWeight:"bold",fontFamily:"var(--serif)"},
+    logoSub:{color:"var(--accent)",fontSize:9,letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"var(--sans)",marginTop:1},
+    tabBar:{display:"flex",borderTop:"1px solid rgba(255,255,255,0.08)",padding:"0 18px"},
+    tab:{background:"none",border:"none",color:"rgba(247,245,240,0.55)",fontFamily:"var(--sans)",fontSize:13,fontWeight:500,padding:"10px 16px",cursor:"pointer",borderBottom:"2px solid transparent"},
+    tabActive:{color:"#F7F5F0",borderBottom:"2px solid var(--accent)"},
+    pill:{background:"rgba(168,197,160,0.15)",border:"1px solid rgba(168,197,160,0.3)",borderRadius:20,padding:"4px 10px",display:"flex",alignItems:"center",gap:4},
+    pillN:{fontFamily:"var(--sans)",fontWeight:700,fontSize:12,color:"#F7F5F0"},
+    pillL:{fontFamily:"var(--sans)",fontSize:11,color:"rgba(247,245,240,0.6)"},
+    restartBtn:{background:"transparent",border:"1px solid rgba(168,197,160,0.25)",color:"rgba(247,245,240,0.5)",fontSize:14,fontFamily:"var(--sans)",padding:"5px 9px",borderRadius:18,cursor:"pointer"},
+    centered:{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:24,overflowY:"auto"},
+    card:{maxWidth:400,width:"100%",textAlign:"center"},
+    welcomeTitle:{fontSize:28,fontWeight:"bold",lineHeight:1.2,margin:"0 0 14px",color:"var(--dark)"},
+    welcomeBody:{fontFamily:"var(--sans)",fontSize:14,color:"var(--muted)",lineHeight:1.7,margin:"0 0 28px"},
+    startBtn:{background:"var(--dark)",color:"#F7F5F0",border:"none",borderRadius:14,padding:"14px 36px",fontSize:15,fontFamily:"var(--sans)",fontWeight:600,cursor:"pointer",width:"100%"},
+    fine:{fontFamily:"var(--sans)",fontSize:11,color:"#B0B8B0",marginTop:16},
+    progressBar:{background:"#E5EDE3",borderRadius:4,height:4,marginBottom:18,overflow:"hidden"},
+    progressFill:{background:"var(--dark)",height:"100%",borderRadius:4,transition:"width 0.4s ease"},
+    stepLabel:{fontFamily:"var(--sans)",fontSize:11,color:"var(--muted)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8},
+    stepQ:{fontSize:20,fontWeight:"bold",color:"var(--dark)",margin:"0 0 18px",lineHeight:1.3},
+    optGrid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8},
+    optBtn:{background:"#fff",border:"1.5px solid #D8E5D5",borderRadius:12,padding:"12px 10px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:5},
+    optSel:{background:"#EBF4E8",border:"1.5px solid var(--dark)",boxShadow:"0 0 0 1px var(--dark)"},
+    optLabel:{fontFamily:"var(--sans)",fontSize:12,color:"var(--dark)",fontWeight:500,lineHeight:1.3},
+    multiHint:{fontFamily:"var(--sans)",fontSize:11,color:"var(--muted)",margin:"4px 0 12px"},
+    nextBtn:{background:"var(--dark)",color:"#F7F5F0",border:"none",borderRadius:12,padding:"13px",fontSize:14,fontFamily:"var(--sans)",fontWeight:600,cursor:"pointer",width:"100%",marginTop:6},
+    nextOff:{background:"#C8D9C4",cursor:"not-allowed"},
+    tabContent:{flex:1,overflowY:"auto",padding:"16px 14px"},
+    welcomeMsg:{background:"#fff",border:"1.5px solid #DDE8D9",borderRadius:14,padding:"14px 16px",fontFamily:"var(--sans)",fontSize:13,color:"var(--dark)",lineHeight:1.65,marginBottom:14},
+    regenRow:{display:"flex",gap:8,marginBottom:16},
+    regenBtn:{background:"#fff",border:"1.5px solid #C8D9C4",color:"#3D5440",borderRadius:18,padding:"8px 14px",fontSize:12,fontFamily:"var(--sans)",fontWeight:600,cursor:"pointer"},
+    generating:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,padding:24,textAlign:"center"},
+    genTitle:{fontFamily:"var(--serif)",fontSize:22,fontWeight:"bold",color:"var(--dark)"},
+    genSub:{fontFamily:"var(--sans)",fontSize:13,color:"var(--muted)",lineHeight:1.6,maxWidth:300},
+    dots:{display:"flex",gap:5,padding:"3px 0",justifyContent:"center"},
+    chatWrap:{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"},
+    chatMain:{flex:1,overflowY:"auto",padding:"18px 14px"},
+    thread:{maxWidth:620,margin:"0 auto",display:"flex",flexDirection:"column",gap:12},
+    userRow:{display:"flex",justifyContent:"flex-end"},
+    aiRow:{display:"flex",gap:8,alignItems:"flex-start"},
+    avatar:{width:28,height:28,background:"var(--dark)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--accent)",fontSize:11,flexShrink:0,marginTop:2},
+    userBubble:{background:"var(--dark)",color:"#F7F5F0",borderRadius:"16px 16px 4px 16px",padding:"10px 14px",fontSize:14,fontFamily:"var(--sans)",maxWidth:"78%",lineHeight:1.5},
+    aiBubble:{background:"#fff",border:"1.5px solid #DDE8D9",borderRadius:"4px 16px 16px 16px",padding:"12px 14px",maxWidth:"88%",boxShadow:"0 1px 4px rgba(44,58,46,0.05)"},
+    aiText:{fontSize:14,fontFamily:"var(--sans)",color:"var(--dark)",lineHeight:1.65},
+    errorMsg:{textAlign:"center",fontSize:13,fontFamily:"var(--sans)",color:"#B85C5C",background:"#FFF0F0",border:"1px solid #FACACA",borderRadius:10,padding:"10px 14px"},
+    quickWrap:{display:"flex",flexWrap:"wrap",gap:7},
+    quickBtn:{background:"#fff",border:"1.5px solid #C8D9C4",color:"#3D5440",borderRadius:18,padding:"7px 12px",fontSize:12,fontFamily:"var(--sans)",cursor:"pointer",lineHeight:1.3},
+    footer:{background:"#fff",borderTop:"1.5px solid #DDE8D9",padding:"10px 14px 9px",flexShrink:0},
+    inputRow:{maxWidth:620,margin:"0 auto",display:"flex",gap:8,alignItems:"flex-end"},
+    textarea:{flex:1,border:"1.5px solid #C8D9C4",borderRadius:12,padding:"10px 13px",fontSize:14,fontFamily:"var(--sans)",color:"var(--dark)",background:"var(--bg)",resize:"none",outline:"none",lineHeight:1.5},
+    sendBtn:{background:"var(--dark)",color:"#F7F5F0",border:"none",borderRadius:12,width:42,height:42,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0},
+    sendOff:{background:"#C8D9C4",cursor:"not-allowed"},
+    footerNote:{textAlign:"center",fontFamily:"var(--sans)",fontSize:10,color:"#B0B8B0",margin:"7px 0 0"},
+  };
+
+  return(
+    <div style={S.root}>
+      <header style={S.header}>
+        <div style={S.headerInner}>
+          <div style={S.logo}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29l-1.43-1.43z" fill="var(--accent)"/></svg>
+            <div><div style={S.logoName}>Workout Assistant</div><div style={S.logoSub}>Feminine Strength Co.</div></div>
+          </div>
+          {phase==="chat"&&(
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              {todaySessions.length>0&&<div style={S.pill}><span style={S.pillN}>{todaySessions.length}</span><span style={S.pillL}>done today</span></div>}
+              <button style={S.restartBtn} onClick={reset} title="Start over">↩</button>
+            </div>
+          )}
+        </div>
+        {phase==="chat"&&(
+          <div style={S.tabBar}>
+            <button style={{...S.tab,...(activeTab==="program"?S.tabActive:{})}} onClick={()=>{setActiveWorkout(null);setActiveTab("program");}}>📋 Program</button>
+            <button style={{...S.tab,...(activeTab==="coach"?S.tabActive:{})}} onClick={()=>setActiveTab("coach")}>💬 Coach</button>
+          </div>
+        )}
+      </header>
+
+      {phase==="welcome"&&(
+        <div style={S.centered}>
+          <div style={S.card} className="fade-in">
+            <div style={{fontSize:52,marginBottom:16}}>🏋️</div>
+            <h1 style={S.welcomeTitle}>Your Personal<br/>Workout Program</h1>
+            <p style={S.welcomeBody}>Answer a few questions and I'll build a full week of workouts designed for your body, your goal, and your schedule — then coach you through every session.</p>
+            <button style={S.startBtn} className="start-btn" onClick={()=>setPhase("onboard")}>Build my program →</button>
+            <p style={S.fine}>Created by Christin Fisher · Feminine Strength Co.</p>
+          </div>
+        </div>
+      )}
+
+      {phase==="onboard"&&(
+        <div style={S.centered}>
+          <div style={{...S.card,maxWidth:460,textAlign:"left"}} className="fade-in">
+            <div style={S.progressBar}><div style={{...S.progressFill,width:`${((step+1)/STEPS.length)*100}%`}}/></div>
+            <div style={S.stepLabel}>{step+1} of {STEPS.length}</div>
+            <h2 style={S.stepQ}>{currentStep.question}</h2>
+            <div style={S.optGrid}>
+              {currentStep.options.map(opt=>{
+                const sel=selections.includes(opt.label);
+                return(<button key={opt.label} style={{...S.optBtn,...(sel?S.optSel:{})}} className={`opt-btn${sel?" selected":""}`} onClick={()=>toggleSel(opt.label)}><span style={{fontSize:22}}>{opt.icon}</span><span style={S.optLabel}>{opt.label}</span></button>);
+              })}
+            </div>
+            {currentStep.type==="multi"&&<p style={S.multiHint}>Select all that apply</p>}
+            <button style={{...S.nextBtn,...(!selections.length?S.nextOff:{})}} className="next-btn" disabled={!selections.length} onClick={nextStep}>
+              {step<STEPS.length-1?"Next →":"Build my program →"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {phase==="chat"&&(
+        <>
+          {generating&&(
+            <div style={S.generating}>
+              <div style={{fontSize:40,marginBottom:16}}>⚙️</div>
+              <div style={S.genTitle}>Building your program...</div>
+              <div style={S.genSub}>Designing a full week of workouts for your goal and equipment.</div>
+              <div style={S.dots}><span className="dot"/><span className="dot"/><span className="dot"/></div>
+            </div>
+          )}
+
+          {!generating&&activeTab==="program"&&!activeWorkout&&(
+            <div style={S.tabContent}>
+              {programDays.length>0
+                ?<>
+                  <WeekCard week={weekMeta} days={programDays} onSelectDay={setActiveWorkout} activeDay={activeWorkout}/>
+                  {messages.length>0&&messages[0].content&&<div style={S.welcomeMsg}><MD text={messages[0].content}/></div>}
+                  <div style={S.regenRow}>
+                    <button style={S.regenBtn} className="regen-btn" onClick={()=>send("Regenerate my full week program with different exercises but the same structure")}>↻ Regenerate week</button>
+                    <button style={S.regenBtn} className="regen-btn" onClick={()=>setActiveTab("coach")}>💬 Ask coach</button>
+                  </div>
+                </>
+                :<div style={{textAlign:"center",padding:"40px 20px"}}>
+                  <div style={{fontSize:36,marginBottom:12}}>📋</div>
+                  <div style={{fontFamily:"var(--sans)",fontWeight:700,fontSize:16,color:"var(--dark)",marginBottom:8}}>No program yet</div>
+                  <div style={{fontFamily:"var(--sans)",fontSize:13,color:"var(--muted)",lineHeight:1.6,marginBottom:20}}>Ask the coach to build your workout program.</div>
+                  <button style={{...S.startBtn,width:"auto",padding:"12px 24px"}} className="start-btn" onClick={()=>setActiveTab("coach")}>Go to Coach →</button>
+                </div>
+              }
+            </div>
+          )}
+
+          {!generating&&activeTab==="program"&&activeWorkout&&(
+            <div style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+              <WorkoutView day={activeWorkout} onUpdate={updateDay} onBack={()=>setActiveWorkout(null)} onComplete={completeWorkout}/>
+            </div>
+          )}
+
+          {!generating&&activeTab==="coach"&&(
+            <div style={S.chatWrap}>
+              <div style={S.chatMain}>
+                <div style={S.thread}>
+                  {messages.map((m,i)=>(
+                    <div key={i} style={m.role==="user"?S.userRow:S.aiRow}>
+                      {m.role==="assistant"&&<div style={S.avatar}>✦</div>}
+                      <div style={m.role==="user"?S.userBubble:S.aiBubble}>
+                        {m.role==="user"?m.content:<div style={S.aiText}><MD text={m.content}/></div>}
+                      </div>
+                    </div>
+                  ))}
+                  {loading&&<div style={S.aiRow}><div style={S.avatar}>✦</div><div style={S.aiBubble}><div style={S.dots}><span className="dot"/><span className="dot"/><span className="dot"/></div></div></div>}
+                  {error&&<div style={S.errorMsg}>{error}</div>}
+                  {messages.length<=1&&!loading&&(
+                    <div style={S.quickWrap}>
+                      {["Swap an exercise for something easier","Add a conditioning finisher","Make next week harder","I only have 30 min today","What should I focus on this week?"].map((q,i)=>(
+                        <button key={i} style={S.quickBtn} className="quick-btn" onClick={()=>send(q)}>{q}</button>
+                      ))}
+                    </div>
+                  )}
+                  <div ref={bottomRef}/>
+                </div>
+              </div>
+              <div style={S.footer}>
+                <div style={S.inputRow}>
+                  <textarea style={S.textarea} className="ta" value={input} onChange={e=>setInput(e.target.value)} onKeyDown={onKey} placeholder="Ask Christin anything about your program..." rows={1}/>
+                  <button style={{...S.sendBtn,...(!input.trim()||loading?S.sendOff:{})}} className="send-btn" onClick={()=>send()} disabled={!input.trim()||loading}>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </button>
+                </div>
+                <p style={S.footerNote}>General fitness guidance, not medical advice. Listen to your body.</p>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
