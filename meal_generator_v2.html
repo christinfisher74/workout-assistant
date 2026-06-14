@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Meal Generator — Feminine Strength Co.</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+
+:root {
+  --forest: #1E3329;
+  --taupe: #C4A882;
+  --olive: #7A9E7E;
+  --cream: #FAF7F2;
+  --dark-taupe: #8B6F4E;
+  --light-olive: #edf3ee;
+  --text: #2C2C2C;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { background: var(--cream); font-family: 'DM Sans', sans-serif; font-weight: 300; color: var(--text); min-height: 100vh; }
+
+/* SCREENS */
+.screen { display: none; min-height: 100vh; flex-direction: column; }
+.screen.active { display: flex; }
+
+/* AUTH */
+.auth-hero { background: var(--forest); padding: 60px 36px 40px; flex: 1; }
+.eyebrow { font-size: 10px; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(196,168,130,0.6); margin-bottom: 24px; display: block; }
+.auth-hero h1 { font-family: 'Cormorant Garamond', serif; font-size: 64px; font-weight: 300; line-height: 0.92; color: var(--cream); margin-bottom: 28px; letter-spacing: -0.025em; }
+.auth-hero h1 em { font-style: italic; color: var(--taupe); display: block; }
+.rule { width: 48px; height: 1px; background: rgba(196,168,130,0.35); margin-bottom: 20px; }
+.auth-sub { font-size: 14px; color: rgba(250,247,242,0.6); line-height: 1.75; margin-bottom: 24px; }
+.pricing-box { background: rgba(196,168,130,0.08); border: 1px solid rgba(196,168,130,0.15); padding: 16px 20px; }
+.pricing-tag { font-size: 9px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--olive); margin-bottom: 6px; display: block; }
+.pricing-amount { font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 300; color: var(--cream); }
+.pricing-amount em { font-style: italic; color: var(--taupe); }
+.pricing-note { font-size: 11px; color: rgba(250,247,242,0.35); margin-top: 2px; }
+
+/* FORMS */
+.auth-forms { background: var(--cream); padding: 32px 36px 48px; }
+.tabs { display: flex; border-bottom: 1px solid rgba(30,51,41,0.1); margin-bottom: 24px; }
+.tab { flex: 1; padding: 10px 8px; text-align: center; font-size: 10px; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; color: #bbb; cursor: pointer; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.2s; }
+.tab.active { color: var(--forest); border-bottom-color: var(--taupe); }
+.form { display: none; }
+.form.active { display: block; }
+.group { margin-bottom: 14px; }
+.label { font-size: 9px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: #aaa; margin-bottom: 6px; display: block; }
+.input { width: 100%; padding: 13px 15px; border: 1px solid rgba(30,51,41,0.12); background: white; color: var(--forest); font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 300; border-radius: 0; -webkit-appearance: none; transition: border-color 0.2s; }
+.input:focus { outline: none; border-color: var(--taupe); }
+.input::placeholder { color: #ccc; }
+.error { font-size: 12px; color: #c0392b; margin-top: 6px; display: none; line-height: 1.4; }
+.error.show { display: block; }
+.success { font-size: 13px; color: var(--olive); margin-top: 6px; display: none; }
+.success.show { display: block; }
+.btn-dark { background: var(--forest); color: var(--cream); border: none; padding: 15px 24px; width: 100%; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer; margin-top: 8px; transition: all 0.2s; }
+.btn-dark:disabled { background: rgba(30,51,41,0.2); cursor: not-allowed; }
+.btn-taupe { background: var(--taupe); color: var(--forest); border: none; padding: 15px 24px; width: 100%; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer; margin-top: 8px; }
+.btn-ghost { background: none; color: #999; border: 1px solid rgba(30,51,41,0.12); padding: 13px 24px; width: 100%; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; cursor: pointer; margin-top: 10px; }
+.note { font-size: 11px; color: #bbb; text-align: center; margin-top: 14px; line-height: 1.6; }
+.forgot { font-size: 11px; color: #bbb; cursor: pointer; text-align: right; display: block; margin-top: 4px; text-decoration: underline; }
+
+/* APP HEADER */
+.app-header { background: var(--forest); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+.app-brand { font-family: 'Cormorant Garamond', serif; font-size: 16px; font-style: italic; color: var(--taupe); }
+.signout-btn { background: none; border: 1px solid rgba(196,168,130,0.2); color: rgba(250,247,242,0.4); padding: 5px 12px; font-size: 9px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; }
+
+/* ONBOARD */
+.onboard { background: var(--cream); padding: 48px 36px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+.onboard h2 { font-family: 'Cormorant Garamond', serif; font-size: 40px; font-weight: 300; color: var(--forest); line-height: 1.05; margin-bottom: 8px; letter-spacing: -0.01em; }
+.onboard h2 em { font-style: italic; color: var(--dark-taupe); }
+.onboard-sub { font-size: 13.5px; color: #999; line-height: 1.6; margin-bottom: 32px; }
+.opts { display: flex; flex-direction: column; gap: 10px; margin-bottom: 32px; }
+.opt { border: 1px solid rgba(30,51,41,0.1); padding: 16px 18px; cursor: pointer; background: white; display: flex; align-items: flex-start; gap: 14px; position: relative; overflow: hidden; transition: all 0.2s; }
+.opt::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--taupe); transform: scaleY(0); transition: transform 0.2s; }
+.opt:hover { border-color: rgba(196,168,130,0.35); }
+.opt:hover::before { transform: scaleY(1); }
+.opt.selected { border-color: var(--taupe); background: rgba(196,168,130,0.06); }
+.opt.selected::before { transform: scaleY(1); }
+.opt-ind { width: 20px; height: 20px; border: 1.5px solid rgba(30,51,41,0.18); border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s; margin-top: 1px; }
+.opt.selected .opt-ind { background: var(--taupe); border-color: var(--taupe); }
+.opt.selected .opt-ind::after { content: ''; width: 6px; height: 6px; background: white; border-radius: 50%; }
+.opt-lbl { font-size: 14px; font-weight: 400; color: var(--forest); margin-bottom: 3px; }
+.opt-desc { font-size: 12px; color: #aaa; line-height: 1.4; }
+.opt.multi .opt-ind { border-radius: 3px; }
+.opt.multi.selected .opt-ind::after { content: '✓'; font-size: 11px; font-weight: 600; border-radius: 0; width: auto; height: auto; background: none; color: white; }
+
+/* PROTEIN SLIDER */
+.protein-display { background: var(--forest); padding: 24px; text-align: center; margin-bottom: 16px; }
+.protein-num { font-family: 'Cormorant Garamond', serif; font-size: 64px; font-weight: 300; color: var(--taupe); line-height: 1; }
+.protein-unit { font-size: 10px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(250,247,242,0.4); margin-top: 4px; display: block; }
+.slider { width: 100%; margin: 16px 0; -webkit-appearance: none; height: 3px; background: rgba(30,51,41,0.12); outline: none; border-radius: 2px; }
+.slider::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; background: var(--taupe); border-radius: 50%; cursor: pointer; }
+.slider-labels { display: flex; justify-content: space-between; font-size: 11px; color: #bbb; }
+
+/* ENERGY */
+.energy-screen { background: var(--forest); padding: 48px 36px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+.energy-screen h2 { font-family: 'Cormorant Garamond', serif; font-size: 38px; font-weight: 300; color: var(--cream); line-height: 1.1; margin-bottom: 8px; }
+.energy-screen h2 em { font-style: italic; color: var(--taupe); }
+.energy-sub { font-size: 13px; color: rgba(250,247,242,0.5); line-height: 1.6; margin-bottom: 32px; }
+.energy-opt { border: 1px solid rgba(196,168,130,0.15); padding: 18px 20px; cursor: pointer; background: rgba(196,168,130,0.05); transition: all 0.2s; margin-bottom: 10px; position: relative; overflow: hidden; }
+.energy-opt::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--taupe); transform: scaleY(0); transition: transform 0.2s; }
+.energy-opt:hover::before { transform: scaleY(1); }
+.energy-opt.selected { border-color: var(--taupe); background: rgba(196,168,130,0.1); }
+.energy-opt.selected::before { transform: scaleY(1); }
+.energy-emoji { font-size: 26px; margin-bottom: 6px; display: block; }
+.energy-lbl { font-family: 'Cormorant Garamond', serif; font-size: 20px; font-weight: 400; color: var(--cream); margin-bottom: 3px; }
+.energy-opt.selected .energy-lbl { color: var(--taupe); }
+.energy-desc { font-size: 12px; color: rgba(250,247,242,0.45); }
+
+/* APP */
+.app-content { flex: 1; padding-bottom: 80px; }
+.profile-bar { background: var(--forest); padding: 16px 24px; display: flex; gap: 24px; flex-wrap: wrap; }
+.profile-item-label { font-size: 9px; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(196,168,130,0.5); margin-bottom: 3px; display: block; }
+.profile-item-val { font-family: 'Cormorant Garamond', serif; font-size: 16px; font-weight: 300; color: var(--cream); }
+.tab-bar { display: flex; background: white; border-bottom: 1px solid rgba(30,51,41,0.08); position: sticky; top: 52px; z-index: 90; }
+.app-tab { flex: 1; padding: 13px 8px; text-align: center; font-size: 10px; font-weight: 500; letter-spacing: 0.13em; text-transform: uppercase; color: #bbb; cursor: pointer; background: none; border: none; border-bottom: 2px solid transparent; transition: all 0.2s; }
+.app-tab.active { color: var(--forest); border-bottom-color: var(--taupe); }
+.tab-content { display: none; padding: 20px 24px; }
+.tab-content.active { display: block; }
+.section-lbl { font-size: 9px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--taupe); margin-bottom: 16px; display: block; }
+
+/* MEAL PLAN */
+.day-block { margin-bottom: 14px; border: 1px solid rgba(30,51,41,0.08); overflow: hidden; }
+.day-header { background: var(--taupe); padding: 11px 16px; display: flex; justify-content: space-between; align-items: center; }
+.day-title { font-family: 'Cormorant Garamond', serif; font-size: 17px; font-weight: 400; color: var(--forest); }
+.day-protein { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(30,51,41,0.5); }
+.meal-row { display: grid; grid-template-columns: 76px 1fr; border-bottom: 1px solid rgba(30,51,41,0.04); font-size: 13px; }
+.meal-row:last-child { border-bottom: none; }
+.meal-type { background: rgba(196,168,130,0.05); padding: 11px 12px; font-size: 9px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dark-taupe); border-right: 1px solid rgba(30,51,41,0.04); display: flex; align-items: center; }
+.meal-name { padding: 11px 14px; color: var(--text); line-height: 1.45; background: white; }
+.meal-prot { font-size: 11px; color: var(--taupe); margin-top: 2px; }
+
+/* CHAT */
+.chat-msgs { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; min-height: 160px; }
+.msg { max-width: 90%; padding: 12px 16px; font-size: 14px; line-height: 1.65; }
+.msg-user { background: var(--forest); color: var(--cream); align-self: flex-end; }
+.msg-ai { background: white; color: var(--text); border: 1px solid rgba(30,51,41,0.08); align-self: flex-start; }
+.typing { display: flex; gap: 4px; padding: 12px 16px; background: white; border: 1px solid rgba(30,51,41,0.08); align-self: flex-start; width: fit-content; }
+.tdot { width: 6px; height: 6px; border-radius: 50%; background: var(--taupe); animation: tb 1.2s infinite; }
+.tdot:nth-child(2) { animation-delay: 0.2s; }
+.tdot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes tb { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
+.chat-input-row { display: flex; gap: 8px; align-items: flex-end; border-top: 1px solid rgba(30,51,41,0.06); padding-top: 14px; }
+.chat-input { flex: 1; padding: 11px 14px; border: 1px solid rgba(30,51,41,0.12); background: white; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 300; color: var(--text); resize: none; min-height: 42px; max-height: 100px; line-height: 1.5; }
+.chat-input:focus { outline: none; border-color: var(--taupe); }
+.send-btn { background: var(--forest); color: var(--taupe); border: none; padding: 11px 16px; font-size: 16px; cursor: pointer; height: 42px; display: flex; align-items: center; flex-shrink: 0; }
+.quick-prompts { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
+.qp { background: white; border: 1px solid rgba(30,51,41,0.1); padding: 7px 12px; font-size: 12px; color: #666; cursor: pointer; transition: all 0.2s; }
+.qp:hover { border-color: var(--taupe); color: var(--forest); }
+
+/* GROCERY */
+.grocery-cat { border: 1px solid rgba(30,51,41,0.08); overflow: hidden; margin-bottom: 10px; }
+.grocery-cat-header { background: var(--forest); color: var(--cream); padding: 9px 14px; font-size: 9px; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; }
+.grocery-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid rgba(30,51,41,0.04); cursor: pointer; background: white; transition: all 0.15s; }
+.grocery-item:last-child { border-bottom: none; }
+.grocery-item.checked { background: rgba(122,158,126,0.04); }
+.g-check { width: 18px; height: 18px; border: 1.5px solid rgba(30,51,41,0.15); border-radius: 2px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.grocery-item.checked .g-check { background: var(--olive); border-color: var(--olive); }
+.grocery-item.checked .g-check::after { content: '✓'; color: white; font-size: 11px; font-weight: 600; }
+.g-text { font-size: 13px; color: var(--text); }
+.grocery-item.checked .g-text { color: #bbb; text-decoration: line-through; }
+
+/* COMPASS CARD */
+.compass-card { background: var(--light-olive); border: 1px solid rgba(122,158,126,0.3); border-left: 3px solid var(--olive); padding: 18px 20px; margin-bottom: 16px; display: none; }
+.compass-card.show { display: block; }
+.compass-card-lbl { font-size: 9px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--olive); margin-bottom: 7px; display: block; }
+.compass-card h4 { font-family: 'Cormorant Garamond', serif; font-size: 19px; font-weight: 400; color: var(--forest); margin-bottom: 6px; }
+.compass-card p { font-size: 13px; color: #666; line-height: 1.55; margin-bottom: 14px; }
+
+/* BOTTOM NAV */
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--forest); display: flex; border-top: 1px solid rgba(196,168,130,0.1); z-index: 100; }
+.nav-btn { flex: 1; padding: 11px 8px 13px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; background: none; border: none; }
+.nav-icon { font-size: 18px; }
+.nav-lbl { font-size: 9px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(250,247,242,0.3); }
+.nav-btn.active .nav-lbl { color: var(--taupe); }
+
+/* GENERATE BTN */
+.generate-btn { background: var(--forest); color: var(--cream); border: none; padding: 14px 24px; width: 100%; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer; margin-bottom: 16px; transition: all 0.2s; }
+.generate-btn:hover { background: #152520; }
+
+/* MISC */
+.ref-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+.ref-table th { background: var(--forest); color: var(--cream); padding: 9px 14px; text-align: left; font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; }
+.ref-table td { padding: 9px 14px; border-bottom: 1px solid rgba(30,51,41,0.06); font-size: 13px; }
+.ref-table tr:nth-child(even) td { background: rgba(196,168,130,0.04); }
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div class="screen active" id="screen-auth">
+  <div class="auth-hero">
+    <span class="eyebrow">Feminine Strength Co. · Nutrition Tool</span>
+    <h1>Meal<br><em>Generator.</em></h1>
+    <div class="rule"></div>
+    <p class="auth-sub">Personalized hormone-smart meal plans built around your protein target, your preferences, and your real life. No diet rules. Just food that fuels the work.</p>
+    <div class="pricing-box">
+      <span class="pricing-tag">One-time purchase</span>
+      <div class="pricing-amount"><em>$17</em></div>
+      <div class="pricing-note">Includes the Fat Loss Fix guide. Yours forever.</div>
+    </div>
+  </div>
+  <div class="auth-forms">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('login')">Sign In</button>
+      <button class="tab" onclick="switchTab('signup')">Get Access</button>
+    </div>
+    <div class="form active" id="f-login">
+      <div class="group"><label class="label">Email</label><input type="email" class="input" id="l-email" placeholder="you@email.com" autocomplete="email"></div>
+      <div class="group"><label class="label">Password</label><input type="password" class="input" id="l-pass" placeholder="Your password" autocomplete="current-password"><span class="forgot" onclick="switchTab('forgot')">Forgot password?</span></div>
+      <div class="error" id="l-err"></div>
+      <button class="btn-dark" id="btn-login" onclick="doLogin()">Sign In</button>
+      <div class="note">No account? <span style="text-decoration:underline;cursor:pointer" onclick="switchTab('signup')">Get access for $17</span></div>
+    </div>
+    <div class="form" id="f-signup">
+      <div class="group"><label class="label">Email</label><input type="email" class="input" id="s-email" placeholder="you@email.com" autocomplete="email"></div>
+      <div class="group"><label class="label">Password</label><input type="password" class="input" id="s-pass" placeholder="Min 8 characters" autocomplete="new-password"></div>
+      <div class="group"><label class="label">Confirm Password</label><input type="password" class="input" id="s-confirm" placeholder="Confirm password" autocomplete="new-password"></div>
+      <div class="error" id="s-err"></div>
+      <div class="success" id="s-ok"></div>
+      <button class="btn-taupe" id="btn-signup" onclick="doSignup()">Get Access — $17</button>
+      <div class="note">One-time payment. Access yours forever.</div>
+    </div>
+    <div class="form" id="f-forgot">
+      <p style="font-size:14px;color:#666;margin-bottom:16px;line-height:1.6">Enter your email and we'll send a reset link.</p>
+      <div class="group"><label class="label">Email</label><input type="email" class="input" id="fg-email" placeholder="you@email.com"></div>
+      <div class="error" id="fg-err"></div>
+      <div class="success" id="fg-ok"></div>
+      <button class="btn-dark" onclick="doForgot()">Send Reset Link</button>
+      <button class="btn-ghost" onclick="switchTab('login')">Back to Sign In</button>
+    </div>
+  </div>
+</div>
+
+<!-- ONBOARD: GOAL -->
+<div class="screen" id="screen-goal">
+  <div class="onboard">
+    <div>
+      <span class="eyebrow" style="color:var(--taupe)">Step 1 of 4</span>
+      <h2>What's your <em>primary goal?</em></h2>
+      <p class="onboard-sub">This shapes how we prioritize your meals.</p>
+      <div class="opts" id="opts-goal">
+        <div class="opt" onclick="pick('goal','strength',this)"><div class="opt-ind"></div><div><div class="opt-lbl">Build strength and muscle</div><div class="opt-desc">Fueling the lifts and recovery</div></div></div>
+        <div class="opt" onclick="pick('goal','fatloss',this)"><div class="opt-ind"></div><div><div class="opt-lbl">Lose body fat</div><div class="opt-desc">Hormone-smart, not restrictive</div></div></div>
+        <div class="opt" onclick="pick('goal','energy',this)"><div class="opt-ind"></div><div><div class="opt-lbl">More energy and better hormones</div><div class="opt-desc">Food as fuel for real life</div></div></div>
+        <div class="opt" onclick="pick('goal','maintain',this)"><div class="opt-ind"></div><div><div class="opt-lbl">Maintain and feel good</div><div class="opt-desc">Structure and variety</div></div></div>
+      </div>
+    </div>
+    <button class="btn-dark" id="btn-goal" onclick="goTo('screen-protein')" disabled>Next</button>
+  </div>
+</div>
+
+<!-- ONBOARD: PROTEIN -->
+<div class="screen" id="screen-protein">
+  <div class="onboard">
+    <div>
+      <span class="eyebrow" style="color:var(--taupe)">Step 2 of 4</span>
+      <h2>Your daily <em>protein target.</em></h2>
+      <p class="onboard-sub">Use 0.7–1g per pound of goal body weight. Start lower and build up.</p>
+      <div class="protein-display">
+        <div class="protein-num" id="prot-num">100</div>
+        <span class="protein-unit">grams per day</span>
+      </div>
+      <input type="range" class="slider" min="60" max="200" value="100" oninput="updateProt(this.value)">
+      <div class="slider-labels"><span>60g</span><span>130g</span><span>200g</span></div>
+      <table class="ref-table" style="margin-top:20px">
+        <thead><tr><th>Goal weight</th><th>Target range</th></tr></thead>
+        <tbody>
+          <tr><td>120–130 lbs</td><td style="font-weight:500;color:var(--forest)">85–130g</td></tr>
+          <tr><td>131–145 lbs</td><td style="font-weight:500;color:var(--forest)">92–145g</td></tr>
+          <tr><td>146–160 lbs</td><td style="font-weight:500;color:var(--forest)">102–160g</td></tr>
+          <tr><td>161–175 lbs</td><td style="font-weight:500;color:var(--forest)">113–175g</td></tr>
+          <tr><td>176–190 lbs</td><td style="font-weight:500;color:var(--forest)">123–190g</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:24px">
+      <button class="btn-dark" onclick="goTo('screen-diet')">Next</button>
+      <button class="btn-ghost" onclick="goTo('screen-goal')">Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ONBOARD: DIET -->
+<div class="screen" id="screen-diet">
+  <div class="onboard">
+    <div>
+      <span class="eyebrow" style="color:var(--taupe)">Step 3 of 4</span>
+      <h2>Any <em>dietary needs?</em></h2>
+      <p class="onboard-sub">Select all that apply.</p>
+      <div class="opts">
+        <div class="opt multi" onclick="pickMulti('diet','gf',this)"><div class="opt-ind"></div><div><div class="opt-lbl">Gluten-free</div><div class="opt-desc">Celiac or sensitivity</div></div></div>
+        <div class="opt multi" onclick="pickMulti('diet','df',this)"><div class="opt-ind"></div><div><div class="opt-lbl">Dairy-free</div><div class="opt-desc">Or dairy-optional</div></div></div>
+        <div class="opt multi" onclick="pickMulti('diet','lowapp',this)"><div class="opt-ind"></div><div><div class="opt-lbl">Low appetite</div><div class="opt-desc">GLP-1 or naturally low hunger</div></div></div>
+        <div class="opt multi" onclick="pickMulti('diet','veg',this)"><div class="opt-ind"></div><div><div class="opt-lbl">Vegetarian</div><div class="opt-desc">Plant-forward proteins</div></div></div>
+        <div class="opt multi" onclick="pickMulti('diet','none',this)"><div class="opt-ind"></div><div><div class="opt-lbl">None — I eat everything</div></div></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn-dark" onclick="goTo('screen-energy')">Next</button>
+      <button class="btn-ghost" onclick="goTo('screen-protein')">Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ONBOARD: ENERGY -->
+<div class="screen" id="screen-energy">
+  <div class="energy-screen">
+    <div>
+      <span class="eyebrow">Step 4 of 4</span>
+      <h2>How's your body <em>showing up today?</em></h2>
+      <p class="energy-sub">This shapes today's meal focus — no judgment.</p>
+      <div class="energy-opt" id="e-strong" onclick="pickEnergy('strong',this)">
+        <span class="energy-emoji">💪</span>
+        <div class="energy-lbl">I woke up</div>
+        <div class="energy-desc">Feeling good — fuel the performance</div>
+      </div>
+      <div class="energy-opt" id="e-cruising" onclick="pickEnergy('cruising',this)">
+        <span class="energy-emoji">🚶‍♀️</span>
+        <div class="energy-lbl">I showed up</div>
+        <div class="energy-desc">Present, steady — nourish and maintain</div>
+      </div>
+      <div class="energy-opt" id="e-potato" onclick="pickEnergy('potato',this)">
+        <span class="energy-emoji">🥔</span>
+        <div class="energy-lbl">I'm a potato</div>
+        <div class="energy-desc">Low energy — easy, comforting, still hits protein</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:24px">
+      <button class="btn-taupe" id="btn-energy" onclick="buildPlan()" disabled>Build my meal plan</button>
+      <button class="btn-ghost" onclick="goTo('screen-diet')">Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div class="screen" id="screen-app">
+  <div class="app-header">
+    <div class="app-brand">Meal Generator</div>
+    <button class="signout-btn" onclick="doSignOut()">Sign out</button>
+  </div>
+  <div class="app-content">
+    <div class="profile-bar">
+      <div><span class="profile-item-label">Protein</span><div class="profile-item-val" id="p-protein">—</div></div>
+      <div><span class="profile-item-label">Today</span><div class="profile-item-val" id="p-energy">—</div></div>
+      <div><span class="profile-item-label">Dietary</span><div class="profile-item-val" id="p-diet">—</div></div>
+    </div>
+    <div class="tab-bar">
+      <button class="app-tab active" onclick="switchAppTab('plan',this)">7-Day Plan</button>
+      <button class="app-tab" onclick="switchAppTab('ask',this)">Ask</button>
+      <button class="app-tab" onclick="switchAppTab('grocery',this)">Grocery</button>
+    </div>
+
+    <!-- PLAN TAB -->
+    <div class="tab-content active" id="tab-plan">
+      <div class="compass-card" id="compass-card">
+        <span class="compass-card-lbl">From Compass</span>
+        <h4>Low energy today — let's support your system</h4>
+        <p>Your plan has been adjusted to easy, nourishing meals. Need guided breathwork or nervous system support alongside it?</p>
+        <button class="btn-taupe" onclick="openCompass()" style="width:100%">Try Compass free for 7 days</button>
+      </div>
+      <span class="section-lbl" style="margin-top:16px;display:block">Your personalized 7-day plan</span>
+      <div id="plan-container"><p style="color:#aaa;font-size:13px;text-align:center;padding:32px 0">Generating your plan...</p></div>
+      <button class="generate-btn" onclick="generatePlan()" style="margin-top:16px">↺ Generate new plan</button>
+    </div>
+
+    <!-- ASK TAB -->
+    <div class="tab-content" id="tab-ask">
+      <span class="section-lbl">Ask me anything about food</span>
+      <div class="quick-prompts">
+        <div class="qp" onclick="sendQuick(this)">High protein breakfast ideas</div>
+        <div class="qp" onclick="sendQuick(this)">Quick lunch under 15 min</div>
+        <div class="qp" onclick="sendQuick(this)">Post-workout meal ideas</div>
+        <div class="qp" onclick="sendQuick(this)">Snacks that hit 20g protein</div>
+        <div class="qp" onclick="sendQuick(this)">Foods that support hormones</div>
+        <div class="qp" onclick="sendQuick(this)">Easy meal prep ideas</div>
+      </div>
+      <div class="chat-msgs" id="chat-msgs">
+        <div class="msg msg-ai">Hey — ask me anything about food, meals, protein, or swaps. Practical answers that fit your life. 🌿</div>
+      </div>
+      <div class="chat-input-row">
+        <textarea class="chat-input" id="chat-in" placeholder="Ask about meals, swaps, protein..." rows="1" onkeydown="chatKey(event)"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMsg()">→</button>
+      </div>
+    </div>
+
+    <!-- GROCERY TAB -->
+    <div class="tab-content" id="tab-grocery">
+      <span class="section-lbl">Weekly grocery list</span>
+      <div id="grocery-container"><p style="color:#aaa;font-size:13px;text-align:center;padding:32px 0">Generate your plan first to see your grocery list.</p></div>
+      <div id="grocery-actions" style="display:none;margin-top:16px">
+        <button class="btn-taupe" onclick="textList()" style="width:100%;margin-bottom:10px">📱 Text list to myself</button>
+        <button class="generate-btn" onclick="copyList()">Copy list to clipboard</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <button class="nav-btn active" onclick="switchAppTab('plan',this.parentNode.children[0])"><span class="nav-icon">🗓</span><span class="nav-lbl">Plan</span></button>
+    <button class="nav-btn" onclick="switchAppTab('ask',this.parentNode.children[1])"><span class="nav-icon">💬</span><span class="nav-lbl">Ask</span></button>
+    <button class="nav-btn" onclick="switchAppTab('grocery',this.parentNode.children[2])"><span class="nav-icon">🛒</span><span class="nav-lbl">Grocery</span></button>
+    <button class="nav-btn" onclick="goTo('screen-goal')"><span class="nav-icon">⚙</span><span class="nav-lbl">Profile</span></button>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ─────────────────────────────────────────
+const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
+const MG_PAYMENT_LINK = 'YOUR_FAT_LOSS_FIX_PAYMENT_LINK_HERE';
+const COMPASS_LINK = 'YOUR_COMPASS_PAYMENT_LINK_HERE';
+// ───────────────────────────────────────────────────
+
+// Init Supabase
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Profile state
+const P = { goal: null, protein: 100, diet: [], energy: null };
+let groceryData = {};
+const chatHistory = [];
+
+// ── NAVIGATION ──────────────────────────────────────
+function goTo(id) {
+  document.querySelectorAll('.screen').forEach(s => { s.classList.remove('active'); s.style.display = 'none'; });
+  const s = document.getElementById(id);
+  s.classList.add('active');
+  s.style.display = 'flex';
+  s.style.flexDirection = 'column';
+  window.scrollTo(0, 0);
+}
+
+// ── AUTH ────────────────────────────────────────────
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.form').forEach(x => x.classList.remove('active'));
+  const ti = { login: 0, signup: 1 };
+  if (ti[t] !== undefined) document.querySelectorAll('.tab')[ti[t]].classList.add('active');
+  const fi = { login: 'f-login', signup: 'f-signup', forgot: 'f-forgot' };
+  if (fi[t]) document.getElementById(fi[t]).classList.add('active');
+}
+
+async function doLogin() {
+  const email = document.getElementById('l-email').value.trim();
+  const pass = document.getElementById('l-pass').value;
+  const btn = document.getElementById('btn-login');
+  document.getElementById('l-err').classList.remove('show');
+  if (!email || !pass) { showErr('l-err', 'Please enter email and password.'); return; }
+  btn.disabled = true; btn.textContent = 'Signing in...';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { showErr('l-err', friendlyErr(error.message)); btn.disabled = false; btn.textContent = 'Sign In'; return; }
+  goTo('screen-goal');
+}
+
+async function doSignup() {
+  const email = document.getElementById('s-email').value.trim();
+  const pass = document.getElementById('s-pass').value;
+  const confirm = document.getElementById('s-confirm').value;
+  const btn = document.getElementById('btn-signup');
+  document.getElementById('s-err').classList.remove('show');
+  if (!email || !pass || !confirm) { showErr('s-err', 'Please fill in all fields.'); return; }
+  if (pass.length < 8) { showErr('s-err', 'Password must be at least 8 characters.'); return; }
+  if (pass !== confirm) { showErr('s-err', "Passwords don't match."); return; }
+  btn.disabled = true; btn.textContent = 'Creating account...';
+  const { error } = await sb.auth.signUp({ email, password: pass });
+  if (error) { showErr('s-err', friendlyErr(error.message)); btn.disabled = false; btn.textContent = 'Get Access — $17'; return; }
+  btn.textContent = 'Redirecting to checkout...';
+  window.location.href = MG_PAYMENT_LINK;
+}
+
+async function doForgot() {
+  const email = document.getElementById('fg-email').value.trim();
+  if (!email) { showErr('fg-err', 'Please enter your email.'); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+  if (error) { showErr('fg-err', 'Could not send reset email.'); return; }
+  document.getElementById('fg-ok').textContent = 'Reset link sent — check your email.';
+  document.getElementById('fg-ok').classList.add('show');
+}
+
+async function doSignOut() {
+  await sb.auth.signOut();
+  goTo('screen-auth');
+  switchTab('login');
+}
+
+function openCompass() { window.open(COMPASS_LINK || '#', '_blank'); }
+
+function showErr(id, msg) { const el = document.getElementById(id); el.textContent = msg; el.classList.add('show'); }
+
+function friendlyErr(msg) {
+  if (msg.includes('Invalid login')) return 'Email or password is incorrect.';
+  if (msg.includes('already registered')) return 'Account exists — try signing in.';
+  return 'Something went wrong. Please try again.';
+}
+
+// ── ONBOARDING ──────────────────────────────────────
+function pick(field, val, el) {
+  el.closest('.opts').querySelectorAll('.opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  P[field] = val;
+  const btns = { goal: 'btn-goal' };
+  if (btns[field]) document.getElementById(btns[field]).disabled = false;
+}
+
+function pickMulti(field, val, el) {
+  if (val === 'none') {
+    el.closest('.opts').querySelectorAll('.opt').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    P[field] = ['none']; return;
+  }
+  el.closest('.opts').querySelector('.opt:last-child').classList.remove('selected');
+  P[field] = P[field].filter(d => d !== 'none');
+  el.classList.toggle('selected');
+  if (el.classList.contains('selected')) { if (!P[field].includes(val)) P[field].push(val); }
+  else { P[field] = P[field].filter(d => d !== val); }
+}
+
+function updateProt(v) { P.protein = parseInt(v); document.getElementById('prot-num').textContent = v; }
+
+function pickEnergy(val, el) {
+  document.querySelectorAll('.energy-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  P.energy = val;
+  document.getElementById('btn-energy').disabled = false;
+}
+
+// ── BUILD PLAN ──────────────────────────────────────
+function buildPlan() {
+  updateProfileDisplay();
+  goTo('screen-app');
+  generatePlan();
+}
+
+function updateProfileDisplay() {
+  const eLabels = { strong: '💪 I woke up', cruising: '🚶‍♀️ I showed up', potato: '🥔 Potato day' };
+  const dLabels = { gf: 'GF', df: 'DF', lowapp: 'Low appetite', veg: 'Vegetarian', none: 'None' };
+  document.getElementById('p-protein').textContent = P.protein + 'g / day';
+  document.getElementById('p-energy').textContent = eLabels[P.energy] || '—';
+  document.getElementById('p-diet').textContent = P.diet.length ? P.diet.map(d => dLabels[d] || d).join(', ') : 'None';
+  const cc = document.getElementById('compass-card');
+  if (cc) cc.classList.toggle('show', P.energy === 'potato');
+}
+
+// ── MEAL PLAN GENERATION ────────────────────────────
+async function generatePlan() {
+  const container = document.getElementById('plan-container');
+  container.innerHTML = '<p style="color:#aaa;font-size:13px;text-align:center;padding:32px 0">Building your 7-day plan...</p>';
+
+  const dietText = P.diet.includes('none') ? 'no restrictions' : P.diet.join(', ') || 'no restrictions';
+  const energyNote = P.energy === 'potato' ? 'Low energy today — make meals extra simple and comforting.' : P.energy === 'strong' ? 'Good energy — include some performance-focused options.' : 'Standard energy — balanced fueling.';
+
+  const prompt = `Create a 7-day hormone-smart meal plan for a woman:
+- Goal: ${P.goal}
+- Daily protein target: ${P.protein}g
+- Dietary needs: ${dietText}
+- Energy today: ${P.energy}. ${energyNote}
+
+Return ONLY valid JSON, no other text:
+{"days":[{"day":"Monday","estimated_protein":"~140g","meals":{"breakfast":{"name":"meal name","protein":"~35g"},"snack1":{"name":"snack","protein":"~20g"},"lunch":{"name":"meal","protein":"~40g"},"snack2":{"name":"snack","protein":"~15g"},"dinner":{"name":"meal","protein":"~40g"}}}],"grocery":{"Proteins":["item"],"Vegetables":["item"],"Fruits":["item"],"Pantry":["item"],"Fats":["item"]}}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+    });
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '';
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    renderPlan(parsed);
+    renderGrocery(parsed.grocery);
+  } catch {
+    renderFallback();
+  }
+}
+
+function renderPlan(plan) {
+  const c = document.getElementById('plan-container');
+  if (!plan?.days) { renderFallback(); return; }
+  c.innerHTML = plan.days.map(d => `
+    <div class="day-block">
+      <div class="day-header"><div class="day-title">${d.day}</div><div class="day-protein">${d.estimated_protein} protein</div></div>
+      <div>
+        ${d.meals.breakfast ? `<div class="meal-row"><div class="meal-type">Breakfast</div><div class="meal-name">${d.meals.breakfast.name}<div class="meal-prot">${d.meals.breakfast.protein}</div></div></div>` : ''}
+        ${d.meals.snack1 ? `<div class="meal-row"><div class="meal-type">Snack</div><div class="meal-name">${d.meals.snack1.name}<div class="meal-prot">${d.meals.snack1.protein}</div></div></div>` : ''}
+        ${d.meals.lunch ? `<div class="meal-row"><div class="meal-type">Lunch</div><div class="meal-name">${d.meals.lunch.name}<div class="meal-prot">${d.meals.lunch.protein}</div></div></div>` : ''}
+        ${d.meals.snack2 ? `<div class="meal-row"><div class="meal-type">Snack</div><div class="meal-name">${d.meals.snack2.name}<div class="meal-prot">${d.meals.snack2.protein}</div></div></div>` : ''}
+        ${d.meals.dinner ? `<div class="meal-row"><div class="meal-type">Dinner</div><div class="meal-name">${d.meals.dinner.name}<div class="meal-prot">${d.meals.dinner.protein}</div></div></div>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function renderFallback() {
+  const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  const meals = [
+    {b:'Eggs + spinach + sweet potato',s1:'Greek yogurt + berries',l:'Chicken thigh bowl + greens + avocado',s2:'Protein shake',d:'Lemon garlic cod + Brussels + squash'},
+    {b:'Chia pudding + blueberries',s1:'Boiled eggs + apple',l:'Turkey burger bowl + rice + greens',s2:'Protein shake',d:'Salmon stir-fry + broccoli + carrots'},
+    {b:'Eggs + kale + sweet potato',s1:'Protein bar',l:'Taco bowl: chicken + avocado + rice',s2:'Pumpkin seeds + banana',d:'Steak + roasted carrots + spinach'},
+    {b:'Chia pudding + almond butter + strawberries',s1:'Turkey roll-ups + avocado',l:'Grilled chicken + quinoa + cucumber',s2:'Protein shake',d:'Cod + zucchini + mashed sweet potato'},
+    {b:'Eggs + mushrooms + spinach',s1:'Cottage cheese + raspberries',l:'Salmon salad + greens + olive oil',s2:'Protein shake + almond butter',d:'Ground beef + rice + peppers'},
+    {b:'Chia pudding + pumpkin + cinnamon',s1:'Hard boiled egg + fruit',l:'Ground beef bowl + avocado + veggies',s2:'Celery + almond butter',d:'Baked chicken thighs + broccoli'},
+    {b:'Protein pancakes + berries',s1:'Protein shake',l:'Grilled shrimp + greens + quinoa',s2:'Trail mix',d:'Stuffed peppers + ground turkey + rice'},
+  ];
+  document.getElementById('plan-container').innerHTML = days.map((day, i) => `
+    <div class="day-block">
+      <div class="day-header"><div class="day-title">${day}</div><div class="day-protein">~${P.protein}g protein</div></div>
+      <div>
+        <div class="meal-row"><div class="meal-type">Breakfast</div><div class="meal-name">${meals[i].b}</div></div>
+        <div class="meal-row"><div class="meal-type">Snack</div><div class="meal-name">${meals[i].s1}</div></div>
+        <div class="meal-row"><div class="meal-type">Lunch</div><div class="meal-name">${meals[i].l}</div></div>
+        <div class="meal-row"><div class="meal-type">Snack</div><div class="meal-name">${meals[i].s2}</div></div>
+        <div class="meal-row"><div class="meal-type">Dinner</div><div class="meal-name">${meals[i].d}</div></div>
+      </div>
+    </div>`).join('');
+  renderGrocery({
+    'Proteins':['Eggs','Chicken thighs','Ground turkey','Cod','Salmon','Steak','Shrimp','Greek yogurt','Protein powder','Cottage cheese'],
+    'Vegetables':['Spinach','Kale','Brussels sprouts','Broccoli','Carrots','Zucchini','Sweet potatoes','Cucumber','Bell peppers','Mushrooms'],
+    'Fruits':['Blueberries','Strawberries','Raspberries','Banana','Avocado','Apple','Lemon'],
+    'Pantry':['Chia seeds','Quinoa','Rice','Coconut aminos','Salsa','Cinnamon','Sea salt','Garlic'],
+    'Fats':['Olive oil','Walnuts','Almond butter','Pumpkin seeds','Sesame oil']
+  });
+}
+
+function renderGrocery(g) {
+  groceryData = g;
+  const c = document.getElementById('grocery-container');
+  c.innerHTML = Object.entries(g).map(([cat, items]) => `
+    <div class="grocery-cat">
+      <div class="grocery-cat-header">${cat}</div>
+      <div>${items.map(item => `<div class="grocery-item" onclick="this.classList.toggle('checked')"><div class="g-check"></div><div class="g-text">${item}</div></div>`).join('')}</div>
+    </div>`).join('');
+  document.getElementById('grocery-actions').style.display = 'block';
+}
+
+// ── GROCERY ACTIONS ─────────────────────────────────
+function buildGroceryText() {
+  let text = 'GROCERY LIST — Feminine Strength Co.\n\n';
+  Object.entries(groceryData).forEach(([cat, items]) => { text += `${cat.toUpperCase()}\n`; items.forEach(i => text += `□ ${i}\n`); text += '\n'; });
+  return text;
+}
+
+function textList() { window.open(`sms:?body=${encodeURIComponent(buildGroceryText())}`, '_blank'); }
+
+function copyList() {
+  const text = buildGroceryText();
+  const btn = event.target;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => { btn.textContent = '✓ Copied!'; setTimeout(() => btn.textContent = 'Copy list to clipboard', 2500); });
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = '✓ Copied!'; setTimeout(() => btn.textContent = 'Copy list to clipboard', 2500);
+  }
+}
+
+// ── CHAT ────────────────────────────────────────────
+async function sendMsg() {
+  const input = document.getElementById('chat-in');
+  const text = input.value.trim();
+  if (!text) return;
+  addMsg(text, 'user');
+  input.value = '';
+  chatHistory.push({ role: 'user', content: text });
+  document.getElementById('send-btn').disabled = true;
+  showTyping();
+
+  const system = `You are a supportive meal planning assistant for Feminine Strength Co. by Christin Fisher, CPT. User profile: goal ${P.goal}, ${P.protein}g protein/day, dietary: ${P.diet.join(',') || 'none'}, energy: ${P.energy}. Be warm, practical, direct. Real food, no diet culture. Short answers with specific suggestions.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, system, messages: chatHistory })
+    });
+    const data = await res.json();
+    const reply = data.content?.[0]?.text || 'Having trouble connecting — try again.';
+    hideTyping();
+    addMsg(reply, 'ai');
+    chatHistory.push({ role: 'assistant', content: reply });
+  } catch {
+    hideTyping();
+    addMsg('Having trouble connecting right now — try again in a moment.', 'ai');
+  }
+  document.getElementById('send-btn').disabled = false;
+}
+
+function addMsg(text, type) {
+  const c = document.getElementById('chat-msgs');
+  const d = document.createElement('div');
+  d.className = `msg msg-${type}`;
+  d.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+  c.appendChild(d);
+  c.scrollTop = c.scrollHeight;
+}
+
+function showTyping() {
+  const c = document.getElementById('chat-msgs');
+  const d = document.createElement('div');
+  d.className = 'typing'; d.id = 'typing';
+  d.innerHTML = '<div class="tdot"></div><div class="tdot"></div><div class="tdot"></div>';
+  c.appendChild(d); c.scrollTop = c.scrollHeight;
+}
+
+function hideTyping() { const t = document.getElementById('typing'); if (t) t.remove(); }
+function sendQuick(el) { document.getElementById('chat-in').value = el.textContent; sendMsg(); }
+function chatKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } }
+
+// ── APP TABS ────────────────────────────────────────
+function switchAppTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.app-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+</script>
+</body>
+</html>
